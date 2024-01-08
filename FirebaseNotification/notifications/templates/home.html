@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <script src="https://www.gstatic.com/firebasejs/8.6.3/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.6.3/firebase-analytics.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.6.3/firebase-messaging.js"></script>
+</head>
+
+<body>
+    <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+    <!-- Replace "{{ csrf_token }}" with the actual Django CSRF token value -->
+
+     <script>
+        const firebaseConfig = {
+              apiKey: "AIzaSyBhYZw16H_y8kF1EaFDAa9bz3sJYBH-3Co",
+              authDomain: "freelance-2dbde.firebaseapp.com",
+              projectId: "freelance-2dbde",
+              storageBucket: "freelance-2dbde.appspot.com",
+              messagingSenderId: "93354563385",
+              appId: "1:93354563385:web:9613d67324542e49a47ae8",
+              measurementId: "G-93QKQXN3YM"
+            };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const messaging = firebase.messaging();
+
+        // Ensure code execution after the DOM is fully loaded
+        document.addEventListener('DOMContentLoaded', function() {
+            messaging.getToken({ vapidKey: 'BH9XOEIAzCaT92-k8LyVZCWMfpxW4HwSPTNitbljLaml7VSYN6VYZV43lc29IbXRWEPeVzF-bDDYk4C6zy4xQKg' }).then((currentToken) => {
+                if (currentToken) {
+                    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+                    fetch('/send-token/', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRFToken': csrfToken, // Include CSRF token in the headers
+                            },
+                            body: JSON.stringify({ token: currentToken }), // Sending token data as JSON
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            console.log('Response from Django:', data);
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                        });
+                } else {
+                    console.log('No registration token available.');
+                }
+            }).catch((err) => {
+                console.error('An error occurred while retrieving token.', err);
+            });
+        });
+    </script>
+</body>
+
+</html>
