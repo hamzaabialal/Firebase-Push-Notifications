@@ -1,16 +1,24 @@
 from django.shortcuts import render
 from django.http import JsonResponse
-from.models import CustomUser, Notification
-from .serializers import CustomUserSerializer, NotificationSerializer
+from.models import CustomUser, Notification, SignUpModel
+from .serializers import CustomUserSerializer, NotificationSerializer, CustomUserModelSerializer, LoginInSerializer
 from rest_framework.generics import ListCreateAPIView
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 import requests
+from rest_framework.mixins import CreateModelMixin, DestroyModelMixin
+from rest_framework.viewsets import GenericViewSet, ModelViewSet
+from rest_framework.permissions import IsAuthenticated
 from django.views.decorators.csrf import csrf_exempt
 from django.dispatch import receiver
 from django.db.models.signals import post_save
 import json
+from rest_framework.authentication import authenticate
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.authentication import JWTAuthentication
 from django.http import HttpResponse
+from rest_framework import status
+from .task import send_mail_func
 # Create your views here.
 
 
@@ -18,11 +26,19 @@ class NotificationView(ListCreateAPIView):
     queryset = Notification.objects.all()
     serializer_class = NotificationSerializer
 
-    def get(self, request, *args, **kwargs):
-        return self.list(request, *args, **kwargs)
+    # def get(self, request, *args, **kwargs):
+    #     return self.list(request, *args, **kwargs)
 
     def post(self, request, *args, **kwargs):
-        return self.create(request, *args, **kwargs)
+        response = super().post(request, *args, **kwargs)
+        if self.request.data.get('status') == 'unread':
+            send_mail_func.delay()
+        return response
+    
+    def get_queryset(self):
+        return Notification.objects.filter(status='unread')
+    send_mail_func.delay()
+
 
 class CustomUserView(ListCreateAPIView):
     queryset = CustomUser.objects.all()
@@ -129,3 +145,61 @@ def send_token(request):
         # For now, just echo the token as a JSON response
         return JsonResponse({'received_token': token_data})
     return JsonResponse({'error': 'Method not allowed'}, status=405)
+
+
+class NotificationVIewSet(ListCreateAPIView):
+    queryset = Notification.objects.all()
+    serializer_class = NotificationSerializer
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [JWTAuthentication]
+
+    def get_queryset(self):
+        return Notification.objects.filter(status='unread', recipient_user__user=self.request.user)
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        count = queryset.count()
+        notifications = self.serializer_class(queryset, many=True).data
+        return Response({"count": count, "notifications": notifications}, status=status.HTTP_200_OK)
+
+
+
+class UserSignUpView(CreateModelMixin, GenericViewSet):
+
+    """View for user sign up"""
+
+    model =SignUpModel.objects.all()
+    serializer_class = CustomUserModelSerializer
+
+    action = {'post': 'create'}
+
+
+class UserLoginInView(CreateModelMixin, GenericViewSet):
+
+    """View for user login"""
+
+    serializer_class = LoginInSerializer
+
+    def create(self, request, *args, **kwargs):
+        email = request.data.get('email')
+        password = request.data.get('password')
+        user = authenticate(email=email, password=password)
+        if user is not None:
+            refresh = RefreshToken.for_user(user)
+            access_token = str(refresh.access_token)
+            refresh_token = str(refresh)
+            #Addding The User Type
+            return Response({"access_token": access_token,
+                             "refresh_token": refresh_token,
+                            },
+                            status=status.HTTP_200_OK)
+        return Response({"message": "Invalid credentials"},
+                        status=status.HTTP_401_UNAUTHORIZED)
+    
+
+    action = {'post': 'create'}
+
+
+def send_mail_to_all(request):
+    send_mail_func.delay()
+    return HttpResponse("sent")

@@ -15,17 +15,29 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
-from django.urls import path
-from .views import NotificationView, CustomUserView, send_notification, index, showFirebaseJS, send_token, send
+from django.urls import path, include
+from .views import NotificationView, CustomUserView, send_mail_to_all, send_notification, index, showFirebaseJS, send_token, send, NotificationVIewSet ,UserSignUpView, UserLoginInView
+from rest_framework.routers import DefaultRouter
+
+
+router = DefaultRouter()
+router.register('signup', UserSignUpView, basename="signup")
+router.register('login', UserLoginInView, basename="login")
+
 
 
 urlpatterns = [
+    path('', include(router.urls)),
+
     path('notifcication/', NotificationView.as_view()),
     path('customuser/', CustomUserView.as_view()),
     path('send-notification/', send_notification),
-    path('', index),
+    path('index/', index),
     path('firebase-messaging-sw.js', showFirebaseJS),
     path('send-token/', send_token),
-    path('send/', send)
+    path('send/', send),
+    path('notificationview/', NotificationVIewSet.as_view()),
+    path('send_mail/', send_mail_to_all)
+
 
 ]
